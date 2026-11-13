@@ -120,3 +120,32 @@ td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
   .grid { grid-template-columns: 1fr; }
   .span-2, .span-3 { grid-column: span 1; }
 }
+
+/* ---------- Sprint 2 additions ---------- */
+select, textarea {
+  font: inherit; width: 100%; padding: 9px 11px; margin-top: 4px;
+  border: 1px solid var(--line); border-radius: 8px; background: white;
+}
+td select { width: auto; margin-top: 0; padding: 5px 8px; }
+input[type="checkbox"] { width: auto; margin: 0; }
+input[type="range"] { padding: 0; margin: 10px 0 4px; accent-color: var(--brand); }
+.btn-danger { background: #c0392b; border-color: #c0392b; }
+.btn-sm { padding: 5px 10px; font-size: 0.8rem; }
+.link-btn { background: none; border: none; color: var(--brand); cursor: pointer; font: inherit; font-size: 0.8rem; margin-left: auto; }
+.row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.alert.warn { background: #fff4d6; color: #7a5a00; }
+.alert.ok { background: #e3f5ea; color: #17643a; }
+.slider-box { margin-top: 14px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: #fbfcfd; }
+.slider-labels { display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--muted); }
+.route-card { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; cursor: pointer; }
+.route-card.active { border-color: #1b5fd6; box-shadow: 0 0 0 2px #dbe7fb; }
+.route-top { display: flex; justify-content: space-between; align-items: baseline; }
+.route-time { font-size: 1.2rem; font-weight: 700; }
+.route-badges { display: flex; gap: 6px; margin: 6px 0; }
+.stat-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin: 16px 0; }
+.stat-card { text-align: center; padding: 14px 8px; }
+.bar { height: 8px; background: #edf0f3; border-radius: 4px; overflow: hidden; margin-bottom: 3px; min-width: 80px; }
+.bar > i { display: block; height: 100%; background: var(--brand); }
+.road-list li { align-items: center; }
+@media (max-width: 800px) { .stat-row { grid-template-columns: repeat(2, 1fr); } }
+@media print { .topbar, .btn, .btn-ghost, select { display: none !important; } .app { height: auto; } }

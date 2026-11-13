@@ -16,19 +16,26 @@ emergency routes, and supports traffic officers' decisions.
 | Auth | JWT tokens with role-based access control |
 | Data | Built-in Kigali traffic simulator (rush hours, incidents, faulty records) |
 
-## Features so far (Sprint 1)
+## Features
 
 | Feature | Requirements |
 |---|---|
 | Simulated traffic data from GPS, sensor and camera sources every 5 seconds | FR 1, FR 1.1 |
 | Validation: broken records are rejected and logged, never used | FR 1.2 |
-| Live map of 15 road segments coloured by congestion, auto-refresh | FR 2, NFR 1 |
-| Congestion detection with configurable thresholds; congestion events opened/closed | FR 3.1 |
-| Historical readings stored | FR 7.1 |
-| Login for 5 roles; pages and API restricted by role | FR 8, NFR 8, NFR 9 |
-| Audit log of logins and control actions | NFR 12 |
-| "Data outdated" warnings when readings are more than 30 s old | NFR 7 |
-| Advisory notice on travel times | NFR 5 |
+| Live map of 15 Kigali road segments coloured by congestion, auto-refresh | FR 2, NFR 1 |
+| Congestion detection with admin-configurable thresholds | FR 3.1 |
+| AI congestion prediction (random forest) with a +15/+30/+45/+60 min timeline slider | FR 3.2 |
+| Prediction accuracy tracked against what actually happened | NFR 19 |
+| Fastest and alternative routes, now or using the AI forecast; saved routes with alerts | FR 4, FR 10 |
+| Emergency routing with ETA; officers are notified | FR 6 |
+| Alerts for detected and predicted congestion; officers acknowledge them | FR 5.1, FR 10 |
+| Signal-timing recommendations that an officer must approve or reject | FR 5.2, NFR 6 |
+| Incident recording and status updates, shown on the map | FR 9 |
+| Reports by corridor and road, CSV download, print to PDF | FR 7 |
+| Login for 5 roles; pages and API restricted by role; admin user management | FR 8, NFR 8, NFR 9 |
+| Audit log and management-actions log | NFR 12 |
+| "Data outdated" warnings on the map and on routes | NFR 7 |
+| Advisory notices on travel times and routes | NFR 5 |
 
 ## How to run it
 
@@ -45,7 +52,7 @@ python -m venv .venv
 source .venv/bin/activate
 
 pip install -r requirements.txt
-uvicorn app.main:app --reload
+python -m uvicorn app.main:app --reload
 ```
 
 The API runs at http://localhost:8000. Interactive API docs: http://localhost:8000/docs
@@ -54,8 +61,8 @@ The API runs at http://localhost:8000. Interactive API docs: http://localhost:80
 
 ```bash
 cd frontend
-npm install
-npm run dev
+npm install      # on Windows PowerShell: npm.cmd install
+npm run dev      # on Windows PowerShell: npm.cmd run dev
 ```
 
 Open http://localhost:5173
@@ -76,12 +83,16 @@ All use the password `SmartFlow2026!` (the login page has one-click buttons).
 
 Log in as the Traffic Officer, open **Control Room**, and click **Morning rush** or
 **Evening rush** to see congestion build up on the map, whatever the real time is.
+Choose clock speed **Very fast (60x)** to fill the AI accuracy table in Reports within a few minutes.
 
 ## Project structure
 
 ```
 backend/app/
   main.py         API routes
+  prediction.py   AI congestion prediction + accuracy tracking
+  routing.py      fastest/alternative/emergency routes (Dijkstra)
+  alerts.py       alerts + signal recommendations
   models.py       database tables (from the UML class diagram)
   auth.py         passwords, JWT tokens, role checks
   processing.py   validation + congestion detection
@@ -89,17 +100,10 @@ backend/app/
   seed.py         road network, data sources, demo users
 frontend/src/
   App.jsx         navigation + role-protected routes
-  pages/          LiveMap, Login, ControlRoom, AuditLog, ComingSoon
+  pages/          LiveMap, RoutePlanner, ControlRoom, Reports, Admin, AuditLog, Login
 ```
 
 ## Notes
 
 - Road positions are approximate points for well-known Kigali areas joined by straight lines.
 - To reset all data, stop the backend and delete `backend/smartflow.db`.
-
-## Roadmap
-
-- Day 4: AI congestion prediction (+15 / +30 min) and accuracy tracking (FR 3.2, NFR 19)
-- Day 5: Alternative and emergency route recommendations (FR 4, FR 6)
-- Day 6: Alerts, incident management, signal recommendations with officer approval, reports (FR 5, FR 7.2, FR 9, FR 10, NFR 6)
-- Day 7: Polish, deploy, demo

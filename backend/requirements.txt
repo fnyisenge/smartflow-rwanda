@@ -2,3 +2,5 @@ fastapi>=0.110
 uvicorn[standard]>=0.29
 sqlmodel>=0.0.16
 pyjwt>=2.8
+numpy>=1.26
+scikit-learn>=1.4

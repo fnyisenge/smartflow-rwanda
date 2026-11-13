@@ -1,12 +1,18 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "./api.js";
 
-// Fetches `path` now and every `ms` milliseconds (live updates, NFR 1).
+// Fetches `path` now and every `ms` milliseconds. Pass null to skip. Call reload() to refresh right away.
 export function usePolling(path, ms = 5000) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
+  const [version, setVersion] = useState(0);
+  const reload = useCallback(() => setVersion((v) => v + 1), []);
 
   useEffect(() => {
+    if (!path) {
+      setData(null);
+      return undefined;
+    }
     let active = true;
     async function load() {
       try {
@@ -25,7 +31,7 @@ export function usePolling(path, ms = 5000) {
       active = false;
       clearInterval(id);
     };
-  }, [path, ms]);
+  }, [path, ms, version]);
 
-  return { data, error };
+  return { data, error, reload };
 }

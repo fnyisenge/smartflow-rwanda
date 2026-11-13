@@ -1,4 +1,5 @@
-import { MapContainer, Polyline, Popup, TileLayer, Tooltip } from "react-leaflet";
+import { useState } from "react";
+import { CircleMarker, MapContainer, Polyline, Popup, TileLayer, Tooltip } from "react-leaflet";
 import { usePolling } from "../usePolling.js";
 
 const KIGALI = [-1.955, 30.09];
@@ -10,29 +11,51 @@ export const SEVERITY = {
   STALE: { color: "#9aa1ab", label: "Data outdated" },
 };
 
-function statusOf(seg) {
-  return seg.is_stale ? "STALE" : seg.severity;
-}
+const STEPS = [0, 15, 30, 45, 60];
 
 export default function LiveMap() {
+  const [horizon, setHorizon] = useState(0);
   const { data, error } = usePolling("/api/traffic/live", 5000);
-  const segments = data?.segments ?? [];
+  const { data: predicted } = usePolling(horizon > 0 ? `/api/traffic/predicted?horizon=${horizon}` : null, 5000);
+  const { data: incidents } = usePolling("/api/incidents", 10000);
+  const { data: alerts } = usePolling("/api/alerts?limit=5", 10000);
 
+  const segments = data?.segments ?? [];
+  const forecast = horizon > 0 && predicted?.horizon_min === horizon ? predicted.segments : null;
+
+  function view(seg) {
+    if (forecast && forecast[seg.id]) {
+      const p = forecast[seg.id];
+      return { status: p.severity, speed: p.speed_kmh, minutes: p.travel_time_min };
+    }
+    return { status: seg.is_stale || !seg.severity ? "STALE" : seg.severity, speed: seg.speed_kmh, minutes: seg.travel_time_min };
+  }
+
+  const rows = segments.map((s) => ({ seg: s, v: view(s) }));
   const counts = { NORMAL: 0, MODERATE: 0, SEVERE: 0, STALE: 0 };
-  segments.forEach((s) => counts[statusOf(s)]++);
+  rows.forEach((r) => counts[r.v.status]++);
   const rank = { SEVERE: 0, MODERATE: 1, STALE: 2, NORMAL: 3 };
-  const problems = segments
-    .filter((s) => statusOf(s) !== "NORMAL")
-    .sort((a, b) => rank[statusOf(a)] - rank[statusOf(b)]);
+  const problems = rows.filter((r) => r.v.status !== "NORMAL").sort((a, b) => rank[a.v.status] - rank[b.v.status]);
 
   return (
     <div className="map-layout">
       <aside className="panel">
-        <h1>Live traffic · Kigali pilot</h1>
+        <h1>{horizon === 0 ? "Live traffic" : `AI forecast: +${horizon} min`} · Kigali pilot</h1>
         <p className="muted">
           {data ? `Updated ${new Date(data.generated_at).toLocaleTimeString()} · refreshes every 5 s` : "Loading…"}
         </p>
         {error && <div className="alert error">Cannot reach the server: {error}</div>}
+
+        <div className="slider-box">
+          <div className="small"><strong>Time travel</strong> — see where congestion is expected</div>
+          <input
+            type="range" min="0" max="60" step="15" value={horizon}
+            onChange={(e) => setHorizon(Number(e.target.value))}
+          />
+          <div className="slider-labels">
+            {STEPS.map((s) => <span key={s}>{s === 0 ? "Now" : `+${s}`}</span>)}
+          </div>
+        </div>
 
         <div className="stats">
           {["NORMAL", "MODERATE", "SEVERE"].map((k) => (
@@ -45,21 +68,38 @@ export default function LiveMap() {
 
         <h2>Roads to avoid</h2>
         {problems.length === 0 ? (
-          <p className="muted">All monitored roads are flowing normally.</p>
+          <p className="muted">All monitored roads are expected to flow normally.</p>
         ) : (
           <ul className="road-list">
-            {problems.map((s) => (
-              <li key={s.id}>
-                <span className="dot" style={{ background: SEVERITY[statusOf(s)].color }} />
+            {problems.map(({ seg, v }) => (
+              <li key={seg.id}>
+                <span className="dot" style={{ background: SEVERITY[v.status].color }} />
                 <div>
-                  <div className="road-name">{s.name}</div>
+                  <div className="road-name">{seg.name}</div>
                   <div className="muted small">
-                    {s.speed_kmh} km/h (limit {s.speed_limit_kmh}) · about {s.travel_time_min} min
+                    {v.speed} km/h (limit {seg.speed_limit_kmh}) · about {v.minutes} min
                   </div>
                 </div>
               </li>
             ))}
           </ul>
+        )}
+
+        {alerts?.length > 0 && (
+          <>
+            <h2>Latest alerts</h2>
+            <ul className="road-list">
+              {alerts.map((a) => (
+                <li key={a.id}>
+                  <span className="dot" style={{ background: SEVERITY[a.severity].color }} />
+                  <div>
+                    <div className="small">{a.message}</div>
+                    <div className="muted small">{new Date(a.created_at).toLocaleTimeString()}</div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </>
         )}
 
         <div className="legend">
@@ -69,8 +109,8 @@ export default function LiveMap() {
         </div>
 
         <p className="advisory">
-          Travel times are estimates based on available data and are advisory only. Always follow
-          instructions from traffic officers and emergency personnel.
+          Travel times and forecasts are estimates and advisory only. Always follow instructions from
+          traffic officers and emergency personnel.
         </p>
       </aside>
 
@@ -80,27 +120,36 @@ export default function LiveMap() {
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-          {segments.map((s) => (
+          {rows.map(({ seg, v }) => (
             <Polyline
-              key={s.id}
-              positions={s.coordinates}
-              pathOptions={{ color: SEVERITY[statusOf(s)].color, weight: 8, opacity: 0.9, lineCap: "round" }}
+              key={seg.id}
+              positions={seg.coordinates}
+              pathOptions={{ color: SEVERITY[v.status].color, weight: 8, opacity: 0.9, lineCap: "round" }}
             >
-              <Tooltip sticky>{s.name}</Tooltip>
+              <Tooltip sticky>{seg.name}</Tooltip>
               <Popup>
-                <strong>{s.name}</strong>
-                <br />
-                {SEVERITY[statusOf(s)].label}
-                <br />
-                Speed: {s.speed_kmh} km/h (limit {s.speed_limit_kmh})
-                <br />
-                Est. travel time: {s.travel_time_min} min for {s.length_km} km
-                <br />
-                <span className={s.is_stale ? "stale" : "fresh"}>
-                  Data {s.data_age_seconds}s old{s.is_stale ? " — outdated" : ""}
+                <strong>{seg.name}</strong><br />
+                {SEVERITY[v.status].label}{horizon > 0 ? ` (forecast +${horizon} min)` : ""}<br />
+                Speed: {v.speed} km/h (limit {seg.speed_limit_kmh})<br />
+                Est. travel time: {v.minutes} min for {seg.length_km} km<br />
+                <span className={seg.is_stale ? "stale" : "fresh"}>
+                  Live data {seg.data_age_seconds}s old{seg.is_stale ? " — outdated" : ""}
                 </span>
               </Popup>
             </Polyline>
+          ))}
+          {(incidents ?? []).map((i) => (
+            <CircleMarker
+              key={i.id} center={[i.lat, i.lng]} radius={11}
+              pathOptions={{ color: "#6b1212", fillColor: "#d64545", fillOpacity: 0.95, weight: 3 }}
+            >
+              <Popup>
+                <strong>{i.type}</strong><br />
+                {i.segment_name}<br />
+                Status: {i.status}<br />
+                {i.description}
+              </Popup>
+            </CircleMarker>
           ))}
         </MapContainer>
       </div>
