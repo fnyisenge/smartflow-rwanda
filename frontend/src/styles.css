@@ -149,3 +149,6 @@ input[type="range"] { padding: 0; margin: 10px 0 4px; accent-color: var(--brand)
 .road-list li { align-items: center; }
 @media (max-width: 800px) { .stat-row { grid-template-columns: repeat(2, 1fr); } }
 @media print { .topbar, .btn, .btn-ghost, select { display: none !important; } .app { height: auto; } }
+
+/* ---------- Daily view / shifts ---------- */
+.toggle { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 0.88rem; cursor: pointer; }

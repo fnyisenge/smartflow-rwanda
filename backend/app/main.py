@@ -5,7 +5,7 @@ Interactive API docs:          http://localhost:8000/docs
 """
 import asyncio
 from contextlib import asynccontextmanager
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,7 +18,7 @@ from .auth import create_token, get_current_user, require_roles, verify_password
 from .database import engine, get_session, init_db
 from .models import (AuditLog, CongestionEvent, DataSource, EmergencyRequest, Incident,
                      IncidentStatus, ManagementAction, RejectedReading, ReviewStatus, RoadNode,
-                     RoadSegment, RoleType, Severity, SignalRecommendation, TrafficAlert,
+                     RoadSegment, RoleType, Severity, Shift, SignalRecommendation, TrafficAlert,
                      TrafficReading, User, as_utc, utcnow)
 from .processing import STALE_AFTER_SECONDS, THRESHOLDS, classify, smoothed_speed
 from .seed import seed
@@ -69,6 +69,22 @@ def network(session: Session):
     nodes = {n.id: n for n in session.exec(select(RoadNode)).all()}
     segs = {s.id: s for s in session.exec(select(RoadSegment)).all()}
     return nodes, segs
+
+
+def last_shift(session: Session):
+    return session.exec(select(Shift).order_by(desc(Shift.started_at))).first()
+
+
+def view_since(session: Session) -> datetime:
+    """Start of the daily view: midnight in Kigali, or the latest shift start if that is later.
+    Older items are not deleted; they are shown when 'history' is switched on."""
+    kigali_now = datetime.now(simulator.KIGALI_TZ)
+    midnight = kigali_now.replace(hour=0, minute=0, second=0, microsecond=0)
+    since = midnight.astimezone(utcnow().tzinfo)
+    shift = last_shift(session)
+    if shift and as_utc(shift.started_at) > since:
+        since = as_utc(shift.started_at)
+    return since
 
 
 # ---------- Health & auth (FR 8) ----------
@@ -177,12 +193,13 @@ def get_routes(origin: str, destination: str, horizon: int = Query(0, ge=0, le=6
 
 # ---------- Alerts (FR 5.1, FR 10) ----------
 @app.get("/api/alerts")
-def list_alerts(limit: int = Query(40, ge=1, le=200), session: Session = Depends(get_session)):
-    rows = session.exec(
-        select(TrafficAlert, RoadSegment)
-        .join(RoadSegment, RoadSegment.id == TrafficAlert.segment_id)
-        .order_by(desc(TrafficAlert.created_at)).limit(limit)
-    ).all()
+def list_alerts(limit: int = Query(40, ge=1, le=200), history: bool = False,
+                session: Session = Depends(get_session)):
+    query = (select(TrafficAlert, RoadSegment)
+             .join(RoadSegment, RoadSegment.id == TrafficAlert.segment_id))
+    if not history:
+        query = query.where(TrafficAlert.created_at >= view_since(session))
+    rows = session.exec(query.order_by(desc(TrafficAlert.created_at)).limit(limit)).all()
     return [{
         "id": a.id, "kind": a.kind, "segment_id": a.segment_id, "segment_name": s.name,
         "severity": a.severity, "message": a.message, "created_at": iso(a.created_at),
@@ -225,10 +242,15 @@ def incident_view(i: Incident, segs: dict, nodes: dict) -> dict:
 
 
 @app.get("/api/incidents")
-def list_incidents(include_resolved: bool = False, session: Session = Depends(get_session)):
+def list_incidents(include_resolved: bool = False, history: bool = False,
+                   session: Session = Depends(get_session)):
     query = select(Incident)
     if not include_resolved:
         query = query.where(Incident.status != IncidentStatus.RESOLVED)
+    elif not history:
+        # open incidents always show; resolved ones only from today / this shift
+        query = query.where((Incident.status != IncidentStatus.RESOLVED)
+                            | (Incident.resolved_at >= view_since(session)))
     rows = session.exec(query.order_by(desc(Incident.reported_at)).limit(50)).all()
     nodes, segs = network(session)
     return [incident_view(i, segs, nodes) for i in rows]
@@ -273,9 +295,15 @@ class ReviewIn(BaseModel):
 
 
 @app.get("/api/signals")
-def list_signals(session: Session = Depends(get_session), user: User = Depends(require_roles(*STAFF))):
+def list_signals(history: bool = False, session: Session = Depends(get_session),
+                 user: User = Depends(require_roles(*STAFF))):
     nodes, segs = network(session)
-    rows = session.exec(select(SignalRecommendation).order_by(desc(SignalRecommendation.created_at)).limit(20)).all()
+    query = select(SignalRecommendation)
+    if not history:
+        # pending ones always show; reviewed/expired ones only from today / this shift
+        query = query.where((SignalRecommendation.status == ReviewStatus.PENDING)
+                            | (SignalRecommendation.created_at >= view_since(session)))
+    rows = session.exec(query.order_by(desc(SignalRecommendation.created_at)).limit(30)).all()
     out = []
     for r in rows:
         event = session.get(CongestionEvent, r.event_id)
@@ -310,11 +338,54 @@ def review_signal(rec_id: int, body: ReviewIn, session: Session = Depends(get_se
 
 # ---------- Management actions (FR 5.2) ----------
 @app.get("/api/actions")
-def list_actions(session: Session = Depends(get_session), user: User = Depends(require_roles(*STAFF))):
+def list_actions(history: bool = False, session: Session = Depends(get_session),
+                 user: User = Depends(require_roles(*STAFF))):
     names = {u.id: u.name for u in session.exec(select(User)).all()}
-    rows = session.exec(select(ManagementAction).order_by(desc(ManagementAction.taken_at)).limit(15)).all()
+    query = select(ManagementAction)
+    if not history:
+        query = query.where(ManagementAction.taken_at >= view_since(session))
+    rows = session.exec(query.order_by(desc(ManagementAction.taken_at)).limit(15)).all()
     return [{"id": a.id, "user": names.get(a.user_id, "?"), "action_type": a.action_type,
              "notes": a.notes, "taken_at": iso(a.taken_at)} for a in rows]
+
+
+# ---------- Shifts: start each day / shift with a clean Control Room ----------
+@app.get("/api/shift")
+def get_shift(session: Session = Depends(get_session), user: User = Depends(require_roles(*STAFF))):
+    shift = last_shift(session)
+    names = {u.id: u.name for u in session.exec(select(User)).all()}
+    return {
+        "view_since": view_since(session).isoformat(),
+        "last_shift": None if not shift else {
+            "started_by": names.get(shift.started_by, "?"), "started_at": iso(shift.started_at),
+        },
+    }
+
+
+@app.post("/api/shift/start")
+def start_shift(session: Session = Depends(get_session), user: User = Depends(require_roles(*STAFF))):
+    """Acknowledge leftover alerts and expire leftover recommendations. Nothing is deleted."""
+    now = utcnow()
+    leftover_alerts = session.exec(select(TrafficAlert).where(TrafficAlert.acknowledged_at == None)).all()  # noqa: E711
+    for a in leftover_alerts:
+        a.acknowledged_by = user.id
+        a.acknowledged_at = now
+        session.add(a)
+    leftover_recs = session.exec(
+        select(SignalRecommendation).where(SignalRecommendation.status == ReviewStatus.PENDING)
+    ).all()
+    for r in leftover_recs:
+        r.status = ReviewStatus.EXPIRED
+        r.reviewed_by = user.id
+        r.reviewed_at = now
+        session.add(r)
+    session.add(Shift(started_by=user.id, started_at=now, alerts_acknowledged=len(leftover_alerts),
+                      recommendations_expired=len(leftover_recs)))
+    session.flush()
+    log_action(session, user, "SHIFT_STARTED",
+               f"{len(leftover_alerts)} alerts acknowledged, {len(leftover_recs)} recommendations expired")
+    session.commit()
+    return {"alerts_acknowledged": len(leftover_alerts), "recommendations_expired": len(leftover_recs)}
 
 
 # ---------- Emergency routing (FR 6) ----------
@@ -350,11 +421,14 @@ def emergency_request(body: EmergencyIn, session: Session = Depends(get_session)
 
 
 @app.get("/api/emergency/requests")
-def list_emergency_requests(session: Session = Depends(get_session),
+def list_emergency_requests(history: bool = False, session: Session = Depends(get_session),
                             user: User = Depends(require_roles(RoleType.EMERGENCY, *STAFF))):
     nodes, _ = network(session)
     users = {u.id: u.name for u in session.exec(select(User)).all()}
-    rows = session.exec(select(EmergencyRequest).order_by(desc(EmergencyRequest.requested_at)).limit(15)).all()
+    query = select(EmergencyRequest)
+    if not history:
+        query = query.where(EmergencyRequest.requested_at >= view_since(session))
+    rows = session.exec(query.order_by(desc(EmergencyRequest.requested_at)).limit(15)).all()
     return [{
         "id": r.id, "by": users.get(r.user_id, "?"), "origin": nodes[r.origin_node].name,
         "destination": nodes[r.destination_node].name, "description": r.description,

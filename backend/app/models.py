@@ -131,6 +131,7 @@ class ReviewStatus(str, Enum):
     PENDING = "PENDING"
     APPROVED = "APPROVED"
     REJECTED = "REJECTED"
+    EXPIRED = "EXPIRED"   # congestion cleared before an officer reviewed it
 
 
 class CongestionPrediction(SQLModel, table=True):
@@ -203,3 +204,12 @@ class EmergencyRequest(SQLModel, table=True):
     requested_at: datetime = Field(default_factory=utcnow)
     estimated_minutes: float
     data_fresh: bool
+
+
+class Shift(SQLModel, table=True):
+    """An officer starts a new shift to clear leftovers; the Control Room shows items from then on."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    started_by: int = Field(foreign_key="user.id")
+    started_at: datetime = Field(default_factory=utcnow, index=True)
+    alerts_acknowledged: int = 0
+    recommendations_expired: int = 0

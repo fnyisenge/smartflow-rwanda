@@ -14,18 +14,25 @@ const time = (iso) => new Date(iso).toLocaleTimeString();
 const fmtHour = (h) =>
   `${String(Math.floor(h)).padStart(2, "0")}:${String(Math.floor((h % 1) * 60)).padStart(2, "0")}`;
 
+const STATUS_COLOR = { APPROVED: "#1f9d55", REJECTED: "#9aa1ab", EXPIRED: "#b8bec7", PENDING: "#e8a317" };
+
 export default function ControlRoom() {
-  const alerts = usePolling("/api/alerts?limit=10", 5000);
+  // Daily view: by default only today's items (or since the last "Start new shift").
+  // Nothing is deleted; tick "Show history" to see older items.
+  const [history, setHistory] = useState(false);
+  const alerts = usePolling(`/api/alerts?limit=10&history=${history}`, 5000);
   const events = usePolling("/api/congestion/active", 5000);
-  const signals = usePolling("/api/signals", 5000);
-  const incidents = usePolling("/api/incidents?include_resolved=true", 5000);
-  const emergencies = usePolling("/api/emergency/requests", 5000);
-  const actions = usePolling("/api/actions", 8000);
+  const signals = usePolling(`/api/signals?history=${history}`, 5000);
+  const incidents = usePolling(`/api/incidents?include_resolved=true&history=${history}`, 5000);
+  const emergencies = usePolling(`/api/emergency/requests?history=${history}`, 5000);
+  const actions = usePolling(`/api/actions?history=${history}`, 8000);
+  const shift = usePolling("/api/shift", 15000);
   const rejected = usePolling("/api/readings/rejected?limit=6", 8000);
   const sim = usePolling("/api/simulator", 4000);
   const live = usePolling("/api/traffic/live", 60000);
 
   const [message, setMessage] = useState("");
+  const [notice, setNotice] = useState("");
   const [form, setForm] = useState({ segment_id: "", type: INCIDENT_TYPES[0], description: "" });
   const [speed, setSpeed] = useState(1);
 
@@ -49,11 +56,41 @@ export default function ControlRoom() {
     setForm({ ...form, description: "" });
   }
 
+  async function startShift() {
+    if (!window.confirm("Start a new shift? Leftover alerts will be acknowledged and unreviewed signal recommendations marked EXPIRED. Nothing is deleted.")) return;
+    try {
+      const r = await api("/api/shift/start", { method: "POST" });
+      setNotice(`New shift started: ${r.alerts_acknowledged} alerts acknowledged, ${r.recommendations_expired} recommendations expired.`);
+      setMessage("");
+      [alerts, signals, incidents, emergencies, actions, shift].forEach((p) => p.reload());
+    } catch (e) {
+      setMessage(e.message);
+    }
+  }
+
   const unack = alerts.data?.filter((a) => !a.acknowledged).length ?? 0;
 
   return (
     <div className="page">
-      <h1>Control Room</h1>
+      <div className="row">
+        <h1>Control Room</h1>
+        <div className="btn-row" style={{ alignItems: "center" }}>
+          <label className="toggle">
+            <input type="checkbox" checked={history} onChange={(e) => setHistory(e.target.checked)} />
+            Show history
+          </label>
+          <button className="btn-ghost" onClick={startShift}>Start new shift</button>
+        </div>
+      </div>
+      <p className="muted small">
+        {history
+          ? "Showing all past items."
+          : `Showing items since ${shift.data ? new Date(shift.data.view_since).toLocaleString() : "today"}`}
+        {!history && shift.data?.last_shift && new Date(shift.data.last_shift.started_at) >= new Date(shift.data.view_since)
+          ? ` (shift started by ${shift.data.last_shift.started_by})`
+          : !history ? " (start of today, Kigali time)" : ""}
+      </p>
+      {notice && <div className="alert ok">{notice}</div>}
       {message && <div className="alert error">{message}</div>}
 
       <div className="grid">
@@ -125,7 +162,7 @@ export default function ControlRoom() {
                     <td><strong>{s.intersection}</strong><div className="muted small">{s.segment_name}</div></td>
                     <td>{s.suggested_plan}<div className="muted small">{s.reason}</div></td>
                     <td>
-                      <span className="badge" style={{ background: s.status === "APPROVED" ? "#1f9d55" : s.status === "REJECTED" ? "#9aa1ab" : "#e8a317" }}>{s.status}</span>
+                      <span className="badge" style={{ background: STATUS_COLOR[s.status] || "#9aa1ab" }}>{s.status}</span>
                       {s.status === "PENDING" && !s.event_active && <div className="muted small">congestion cleared</div>}
                     </td>
                     <td>

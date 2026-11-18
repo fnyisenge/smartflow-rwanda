@@ -1,12 +1,13 @@
 """Alerts (FR 5.1, FR 10) and signal recommendations (FR 5, NFR 6)."""
 from sqlmodel import Session, select
 
-from .models import (CongestionEvent, RoadNode, RoadSegment, Severity, SignalRecommendation,
-                     TrafficAlert)
+from .models import (CongestionEvent, ReviewStatus, RoadNode, RoadSegment, Severity,
+                     SignalRecommendation, TrafficAlert, utcnow)
 from .processing import THRESHOLDS
 
 
 def sync_alerts(session: Session) -> None:
+    expire_stale_recommendations(session)
     open_events = session.exec(
         select(CongestionEvent).where(CongestionEvent.end_time == None)  # noqa: E711
     ).all()
@@ -26,3 +27,19 @@ def sync_alerts(session: Session) -> None:
                     reason=(f"Severe congestion on {seg.name}: average speed below "
                             f"{round(THRESHOLDS['severe'] * 100)}% of the speed limit"),
                 ))
+
+
+def expire_stale_recommendations(session: Session) -> int:
+    """A recommendation nobody reviewed becomes EXPIRED once its severe congestion is over."""
+    pending = session.exec(
+        select(SignalRecommendation).where(SignalRecommendation.status == ReviewStatus.PENDING)
+    ).all()
+    expired = 0
+    for rec in pending:
+        event = session.get(CongestionEvent, rec.event_id)
+        if event is None or event.end_time is not None or event.severity != Severity.SEVERE:
+            rec.status = ReviewStatus.EXPIRED
+            rec.reviewed_at = utcnow()
+            session.add(rec)
+            expired += 1
+    return expired
