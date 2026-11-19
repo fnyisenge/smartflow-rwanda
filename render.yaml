@@ -1,0 +1,15 @@
+# Render Blueprint: deploys SmartFlow Rwanda as one web service (API + website on one URL).
+# On Render: New > Blueprint > pick this repository > Apply.
+services:
+  - type: web
+    name: smartflow-rwanda
+    runtime: python
+    plan: free
+    buildCommand: pip install -r backend/requirements.txt && cd frontend && npm ci && npm run build
+    startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: JWT_SECRET
+        generateValue: true
