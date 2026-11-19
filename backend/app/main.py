@@ -6,9 +6,12 @@ Interactive API docs:          http://localhost:8000/docs
 import asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlmodel import Session, desc, select
@@ -602,3 +605,21 @@ def set_simulator(body: SimulatorSettings, session: Session = Depends(get_sessio
     audit(session, user, "SIMULATOR_SETTINGS", body.model_dump_json())
     session.commit()
     return get_simulator()
+
+
+# ---------- Serve the built React app (deployment) ----------
+# When frontend/dist exists (after `npm run build`), the backend also serves the website,
+# so the whole app runs on one public URL. During local development Vite serves it instead.
+FRONTEND_DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+
+if FRONTEND_DIST.is_dir():
+    app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def serve_frontend(full_path: str):
+        if full_path.startswith("api/"):
+            raise HTTPException(404, "Not found")
+        requested = (FRONTEND_DIST / full_path).resolve()
+        if full_path and requested.is_file() and FRONTEND_DIST in requested.parents:
+            return FileResponse(requested)
+        return FileResponse(FRONTEND_DIST / "index.html")  # React Router handles the page
