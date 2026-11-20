@@ -91,7 +91,7 @@ def view_since(session: Session) -> datetime:
 
 
 # ---------- Health & auth (FR 8) ----------
-@app.get("/api/health")
+@app.api_route("/api/health", methods=["GET", "HEAD"])
 def health():
     return {"status": "ok", "simulator_running": simulator.state["running"]}
 
@@ -615,7 +615,8 @@ FRONTEND_DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
 if FRONTEND_DIST.is_dir():
     app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets")
 
-    @app.get("/{full_path:path}", include_in_schema=False)
+    # GET and HEAD: Render (and other uptime checkers) send HEAD requests to check the site is up
+    @app.api_route("/{full_path:path}", methods=["GET", "HEAD"], include_in_schema=False)
     def serve_frontend(full_path: str):
         if full_path.startswith("api/"):
             raise HTTPException(404, "Not found")
