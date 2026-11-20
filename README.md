@@ -4,6 +4,7 @@ SmartFlow Rwanda monitors traffic on selected Kigali corridors, detects and **pr
 recommends alternative and emergency routes, and helps traffic officers make decisions — always keeping a human in control.
 
 **Author:** Nyisenge Heureuse Faustine — African Leadership University
+**SRS document:** [SmartFlow Rwanda SRS](https://drive.google.com/file/d/12nHB60ZhXswZ38HUXQUWKTeHCFCoznZj/view?usp=sharing)
 
 ## 🔗 Live app
 
