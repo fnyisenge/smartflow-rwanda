@@ -39,10 +39,7 @@ code { font-size: 0.78rem; color: var(--muted); word-break: break-all; }
   text-decoration: none; font-weight: 700; font-size: 1.15rem; letter-spacing: 0.02em;
 }
 .side-brand small { display: block; font-size: 0.72rem; font-weight: 500; letter-spacing: 0.3em; color: var(--muted); text-transform: uppercase; }
-.side-logo {
-  width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center;
-  background: var(--brand); color: var(--brand-ink);
-}
+.side-logo { width: 44px; height: 44px; flex-shrink: 0; }
 .side-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .side-link {
   display: flex; align-items: center; gap: 14px; padding: 11px 14px; border-radius: 10px;
@@ -253,6 +250,7 @@ tr:last-child td { border-bottom: none; }
 /* ---------- Login ---------- */
 .login-page { display: grid; place-items: center; padding: 64px 16px; }
 .login-card { width: 100%; max-width: 400px; padding: 28px; }
+.login-logo { display: block; width: 100%; height: auto; background: #fff; border-radius: 12px; padding: 10px 16px; margin-bottom: 22px; }
 .login-card .btn { width: 100%; justify-content: center; margin-top: 4px; }
 .demo-box { margin-top: 22px; padding-top: 16px; border-top: 1px dashed var(--line); display: flex; flex-wrap: wrap; gap: 6px; }
 .demo-box > div { width: 100%; margin-bottom: 2px; }
@@ -291,4 +289,4 @@ tr:last-child td { border-bottom: none; }
   .shell, .content { display: block; height: auto; overflow: visible; }
   :root, body, .card { background: #fff !important; color: #111 !important; }
   .card { border-color: #ccc; }
-}
+} 

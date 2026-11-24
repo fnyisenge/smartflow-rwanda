@@ -37,9 +37,7 @@ export default function App() {
     <div className="shell">
       <aside className="sidebar">
         <Link to="/" className="side-brand">
-          <span className="side-logo" aria-hidden="true">
-            <Icon name="road" size={22} />
-          </span>
+          <img src="/icon-192.png" alt="" className="side-logo" />
           <span>
             SmartFlow<small>Rwanda</small>
           </span>
