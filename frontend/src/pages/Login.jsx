@@ -46,6 +46,7 @@ export default function Login() {
   return (
     <div className="login-page">
       <form className="card login-card" onSubmit={submit}>
+         <img src="/logo-wide.webp" alt="SmartFlow Rwanda" className="login-logo" />
         <h1>Log in</h1>
         <p className="muted">Commuters can view the live map without an account.</p>
         {expired && !error && (
