@@ -290,3 +290,14 @@ tr:last-child td { border-bottom: none; }
   :root, body, .card { background: #fff !important; color: #111 !important; }
   .card { border-color: #ccc; }
 } 
+/* ---------- Turn-by-turn directions ---------- */
+.directions-box { margin: 0 0 12px; padding: 14px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
+.directions-box h2 { margin-top: 0; }
+.directions { list-style: none; padding: 0; margin: 8px 0 0; }
+.directions li { display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; align-items: start; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 0.86rem; }
+.directions li:last-child { border-bottom: none; }
+.directions li.waypoint { color: var(--muted); font-size: 0.8rem; }
+.dir-icon { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; background: var(--card-2); color: var(--brand); font-size: 1rem; }
+.directions li.waypoint .dir-icon { background: none; color: var(--muted); }
+.dir-text { padding-top: 4px; }
+.dir-dist { padding-top: 4px; color: var(--muted); font-size: 0.8rem; white-space: nowrap; }
