@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { CircleMarker, MapContainer, Polyline, TileLayer, Tooltip, useMap } from "react-leaflet";
 import { api } from "../api.js";
+import { formatDistance, getDirections } from "../directions.js";
 import { usePolling } from "../usePolling.js";
 import { SEVERITY } from "./LiveMap.jsx";
 
@@ -24,12 +25,30 @@ export default function RoutePlanner({ emergency = false }) {
   const [picked, setPicked] = useState(0);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [roads, setRoads] = useState({}); // road path + turn-by-turn directions per route
   const [saved, setSaved] = useState(() => JSON.parse(localStorage.getItem(SAVED_KEY) || "[]"));
   const { data: alerts } = usePolling(emergency ? null : "/api/alerts?limit=40", 10000);
 
   useEffect(() => {
     api("/api/nodes").then(setNodes).catch((e) => setError(e.message));
   }, []);
+
+  // When routes arrive, fetch the real road path and directions for each one (one at a time).
+  useEffect(() => {
+    setRoads({});
+    if (!result?.routes?.length) return undefined;
+    let active = true;
+    (async () => {
+      for (let i = 0; i < result.routes.length; i++) {
+        const dir = await getDirections(result.routes[i]);
+        if (!active) return;
+        setRoads((prev) => ({ ...prev, [i]: dir }));
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [result]);
 
   async function submit(e) {
     e.preventDefault();
@@ -74,7 +93,33 @@ export default function RoutePlanner({ emergency = false }) {
   );
 
   const route = result?.routes?.[picked];
-  const fitPoints = route?.coordinates;
+  const lineFor = (r, i) => roads[i]?.line ?? r.coordinates;
+  const fitPoints = route ? lineFor(route, picked) : undefined;
+  const directions = roads[picked];
+  const directionsBox = route && (
+    <div className="directions-box">
+      <h2>Directions · {route.label}</h2>
+      {!directions ? (
+        <p className="muted small">Loading turn-by-turn directions…</p>
+      ) : (
+        <>
+          <p className="muted small">
+            {formatDistance(directions.distance_m)} by road · about {route.minutes} min in current traffic
+            {directions.source === "straight" && " · street-level directions are unavailable right now, showing the main places to pass"}
+          </p>
+          <ol className="directions">
+            {directions.steps.map((st, k) => (
+              <li key={k} className={st.waypoint ? "waypoint" : ""}>
+                <span className="dir-icon">{st.icon}</span>
+                <span className="dir-text">{st.text}</span>
+                {st.distance > 0 && <span className="dir-dist">{formatDistance(st.distance)}</span>}
+              </li>
+            ))}
+          </ol>
+        </>
+      )}
+    </div>
+  );
 
   return (
     <div className="map-layout">
@@ -136,13 +181,14 @@ export default function RoutePlanner({ emergency = false }) {
             )}
             <h2>{result.origin_name} → {result.destination_name}</h2>
             {result.routes.map((r, i) => (
-              <div key={r.label} className={`route-card ${i === picked ? "active" : ""}`} onClick={() => setPicked(i)}>
+              <Fragment key={r.label}>
+                <div className={`route-card ${i === picked ? "active" : ""}`} onClick={() => setPicked(i)}>
                 <div className="route-top">
                   <strong>{r.label}</strong>
                   <span className="route-time">{r.minutes} min</span>
                 </div>
                 <div className="muted small">
-                  {r.distance_km} km · {r.delay_min > 0 ? `${r.delay_min} min delay from traffic` : "no traffic delay"}
+                  {roads[i] ? formatDistance(roads[i].distance_m) : `${r.distance_km} km`} · {r.delay_min > 0 ? `${r.delay_min} min delay from traffic` : "no traffic delay"}
                 </div>
                 <div className="route-badges">
                   <span className="badge" style={{ background: SEVERITY[r.worst_severity].color }}>
@@ -154,6 +200,8 @@ export default function RoutePlanner({ emergency = false }) {
                 </div>
                 <div className="muted small">via {r.via.join(" → ")}</div>
               </div>
+              {i === picked && directionsBox}
+              </Fragment>
             ))}
             {result.routes.length === 0 && <p className="muted">No route found.</p>}
             {!emergency && result.routes.length > 0 && (
@@ -211,8 +259,8 @@ export default function RoutePlanner({ emergency = false }) {
           <FitTo points={fitPoints} />
           {result?.routes?.map((r, i) => (
             <Polyline
-              key={`${r.label}-${i === picked}`}
-              positions={r.coordinates}
+              key={`${r.label}-${i === picked}-${roads[i] ? "road" : "line"}`}
+              positions={lineFor(r, i)}
               eventHandlers={{ click: () => setPicked(i) }}
               pathOptions={i === picked
                 ? { color: "#1b5fd6", weight: 9, opacity: 0.95 }
@@ -223,10 +271,10 @@ export default function RoutePlanner({ emergency = false }) {
           ))}
           {route && (
             <>
-              <CircleMarker center={route.coordinates[0]} radius={9} pathOptions={{ color: "#0b6e4f", fillColor: "#0b6e4f", fillOpacity: 1 }}>
+              <CircleMarker center={fitPoints[0]} radius={9} pathOptions={{ color: "#0b6e4f", fillColor: "#0b6e4f", fillOpacity: 1 }}>
                 <Tooltip permanent direction="top">Start</Tooltip>
               </CircleMarker>
-              <CircleMarker center={route.coordinates[route.coordinates.length - 1]} radius={9} pathOptions={{ color: "#d64545", fillColor: "#d64545", fillOpacity: 1 }}>
+              <CircleMarker center={fitPoints[fitPoints.length - 1]} radius={9} pathOptions={{ color: "#d64545", fillColor: "#d64545", fillOpacity: 1 }}>
                 <Tooltip permanent direction="top">End</Tooltip>
               </CircleMarker>
             </>
