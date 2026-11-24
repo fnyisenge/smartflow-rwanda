@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ROLE_LABELS, useAuth } from "../auth.jsx";
 
 const DEMO_PASSWORD = "SmartFlow2026!";
@@ -26,6 +26,8 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [params] = useSearchParams();
+  const expired = params.get("expired") === "1";
 
   async function submit(e) {
     e.preventDefault();
@@ -46,6 +48,9 @@ export default function Login() {
       <form className="card login-card" onSubmit={submit}>
         <h1>Log in</h1>
         <p className="muted">Commuters can view the live map without an account.</p>
+        {expired && !error && (
+          <div className="alert warn">Your session has expired. Please log in again.</div>
+        )}
         <label>
           Email
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
