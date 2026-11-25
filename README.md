@@ -50,7 +50,9 @@ recommendations that they must approve — SmartFlow never changes traffic signa
 | Validation: invalid records are rejected and logged, never used | FR 1.2 |
 | Live map of 15 Kigali road segments coloured by congestion, auto-refresh | FR 2, NFR 1 |
 | Congestion detection with admin-configurable thresholds | FR 3.1 |
-| AI congestion prediction (random forest) with a +15/+30/+45/+60 min "time travel" slider | FR 3.2 |
+| AI congestion prediction (random forest): Now / +15 / +30 / +60 min forecast tabs on the live map | FR 3.2 |
+| Dashboard with key figures, system status, live mini map and a 60-minute AI forecast chart | FR 2, FR 7 |
+| Turn-by-turn directions along real roads (OpenStreetMap / OSRM) for normal and emergency routes | FR 4, FR 6 |
 | Prediction accuracy tracked against what actually happened | NFR 19 |
 | Fastest and alternative routes, now or using the AI forecast; saved routes with alerts | FR 4, FR 10 |
 | Emergency routing with ETA; officers are notified | FR 6 |
@@ -66,11 +68,13 @@ recommendations that they must approve — SmartFlow never changes traffic signa
 
 ## Screenshots
 
-| Live map with AI forecast | Route planner |
+| Dashboard | Live map with AI forecast |
 |---|---|
-| ![Live map](docs/screenshots/live-map.png) | ![Route planner](docs/screenshots/route-planner.png) |
-| **Control Room (traffic officer)** | **Reports (urban planner)** |
-| ![Control Room](docs/screenshots/control-room.png) | ![Reports](docs/screenshots/reports.png) |
+| ![Dashboard](docs/screenshots/dashboard.png) | ![Live map](docs/screenshots/live-map.png) |
+| **Route planner with turn-by-turn directions** | **Control Room (traffic officer)** |
+| ![Route planner](docs/screenshots/route-planner.png) | ![Control Room](docs/screenshots/control-room.png) |
+| **Reports (urban planner)** | **Login** |
+| ![Reports](docs/screenshots/reports.png) | ![Login](docs/screenshots/login.png) |
 
 ## Tech stack
 
@@ -180,15 +184,15 @@ To stop the app, press **Ctrl + C** in each terminal. To start it again later, r
 
 ## Demo guide (5 minutes)
 
-1. Log in as **Traffic Officer** → **Control Room** → click **Evening rush** (choose clock speed **Fast (10x)** to speed things up).
-2. After ~20 seconds open **Live Map**: roads turn amber and red. Drag the **Time travel** slider to **+30** to see the AI forecast.
-3. **Route Planner**: from **Kimironko** to **Nyabugogo Bus Park** → fastest route and alternatives. Try **In 30 min (AI forecast)**.
-4. Log in as **Emergency Services** → **Emergency Routing** → request a route. Then, as the officer, see it under **Emergency requests**.
-5. In the **Control Room**: acknowledge an alert, **Approve** a signal recommendation, and **Record an incident** (it appears on the map).
-6. Click **Pause data** and wait ~40 seconds: roads turn grey ("data outdated"). Click **Resume data**.
-7. Log in as **Urban Planner** → **Reports**: congestion by corridor and AI prediction accuracy
-   (set clock speed **Very fast (60x)** for a few minutes to fill the accuracy table quickly).
-8. Log in as **Administrator** → **Admin** (users, data sources, thresholds) and **Audit Log**.
+1. Open the live app and log in as **Traffic Officer**. In the **Control Room**, set clock speed to **Fast (10x)** and click **Evening rush**.
+2. After about 20 seconds, open the **Dashboard**: key figures, system status, the live mini map, the "Traffic right now" chart and the 60-minute AI forecast.
+3. Open the **Live Map**: roads turn amber and red, and new alerts appear on the right. Click the **+30 min** tab to see the AI forecast, and click a road to see its speed and travel time.
+4. Open the **Route Planner**: choose **Kimironko** to **Nyabugogo Bus Park** and click **Find routes**. You get the fastest route, alternatives and turn-by-turn directions along real roads. Try **In 30 min (AI forecast)**.
+5. Log in as **Emergency Services**, open **Emergency Routing** and request a route. Then log in as the officer again and find it under **Emergency requests** in the Control Room.
+6. In the **Control Room**: acknowledge an alert, **Approve** a signal recommendation and **Record an incident** (it appears as a red dot on the Live Map).
+7. Click **Pause data** and wait about 40 seconds: roads turn grey ("Data outdated"). Then click **Resume data**.
+8. Log in as **Urban Planner** and open **Reports**: congestion by corridor and AI prediction accuracy. To fill the accuracy table quickly, set clock speed to **Very fast (60x)** for a few minutes first.
+9. Log in as **Administrator** and open **Admin** (users, data sources, congestion thresholds) and the **Audit Log**.
 
 ---
 
